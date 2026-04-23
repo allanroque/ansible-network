@@ -1,0 +1,65 @@
+# =============================================================================
+# .gitignore — AAP 2.5 network lab
+# =============================================================================
+# Objetivo: esconder artefatos locais, credenciais e info sensivel do repo.
+# =============================================================================
+
+# ---------- Info sensivel (NAO commitar) -------------------------------------
+# ansible.cfg e inventory.ini contem credenciais/IPs reais do lab.
+# Commitar somente as versoes *.example abaixo.
+ansible.cfg
+inventory.ini
+
+# Logs do ansible-navigator / ansible (pode vazar senhas, IPs, hostnames)
+ansible-navigator.log
+.ansible-navigator.log
+*.log
+.logs/
+logs/
+
+# Artefatos de execucao do ansible-navigator (JSON com output completo)
+playbook-artifact-*.json
+*-artifact-*.json
+
+# Vault passwords / credenciais em arquivo
+.vault_pass
+.vault-password*
+*.vault
+.env
+.envrc
+
+# ---------- SSH / chaves privadas --------------------------------------------
+keys/*.pem
+keys/*.key
+keys/*.priv
+keys/id_*
+!keys/*.pub
+
+# ---------- Artefatos Ansible ------------------------------------------------
+*.retry
+.ansible/
+.ansible_cache/
+fact_cache/
+collections/
+roles/galaxy/
+
+# ---------- Discovery / descoberta SSH ---------------------------------------
+reports/
+host_vars/
+
+# ---------- IDE / SO ---------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ---------- Python -----------------------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+#mcp
+.mcp.json

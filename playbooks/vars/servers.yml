@@ -6,9 +6,10 @@
 #   vars_files:
 #     - ../vars/servers.yml
 #
-# Override via CLI:
+# Override via CLI (lista JSON) ou survey no AAP (string YAML multilinha):
 #   ansible-playbook playbooks/cisco/ntp.yml \
 #     -e 'ntp_servers=["10.20.0.1","10.20.0.2"]'
+#   Os playbooks NTP/Syslog convertem string YAML em lista (from_yaml).
 # =============================================================================
 
 # --- NTP ---

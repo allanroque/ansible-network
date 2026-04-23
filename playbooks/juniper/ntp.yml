@@ -8,12 +8,15 @@
   gather_facts: false
   vars_files:
     - ../vars/servers.yml
+  vars:
+    _ntp_servers_list: >-
+      {{ (ntp_servers | from_yaml | default([])) if (ntp_servers is string) else ntp_servers }}
 
   tasks:
     - name: "Juniper | NTP servers (junos_ntp_global - idempotente)"
       junipernetworks.junos.junos_ntp_global:
         config:
-          servers: "{{ ntp_servers | map('community.general.dict_kv', 'server') | list }}"
+          servers: "{{ _ntp_servers_list | map('community.general.dict_kv', 'server') | list }}"
         state: merged
       register: _result
 
@@ -21,4 +24,4 @@
       ansible.builtin.debug:
         msg:
           - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
-          - "NTP servers: {{ ntp_servers }}"
+          - "NTP servers: {{ _ntp_servers_list }}"

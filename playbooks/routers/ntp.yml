@@ -9,12 +9,16 @@
   gather_facts: false
   vars_files:
     - ../vars/servers.yml
+  vars:
+    # Survey no Controller envia textarea como string; vars_files já define lista
+    _ntp_servers_list: >-
+      {{ (ntp_servers | from_yaml | default([])) if (ntp_servers is string) else ntp_servers }}
 
   tasks:
     - name: "Cisco IOS | NTP (ios_ntp_global)"
       cisco.ios.ios_ntp_global:
         config:
-          servers: "{{ ntp_servers | map('community.general.dict_kv', 'server') | list }}"
+          servers: "{{ _ntp_servers_list | map('community.general.dict_kv', 'server') | list }}"
         state: merged
       when: ansible_network_os == 'ios'
       register: _r_ios
@@ -22,7 +26,7 @@
     - name: "Arista EOS | NTP (eos_ntp_global)"
       arista.eos.eos_ntp_global:
         config:
-          servers: "{{ ntp_servers | map('community.general.dict_kv', 'server') | list }}"
+          servers: "{{ _ntp_servers_list | map('community.general.dict_kv', 'server') | list }}"
         state: merged
       when: ansible_network_os == 'eos'
       register: _r_eos
@@ -30,7 +34,7 @@
     - name: "Juniper Junos | NTP (junos_ntp_global)"
       junipernetworks.junos.junos_ntp_global:
         config:
-          servers: "{{ ntp_servers | map('community.general.dict_kv', 'server') | list }}"
+          servers: "{{ _ntp_servers_list | map('community.general.dict_kv', 'server') | list }}"
         state: merged
       when: ansible_network_os == 'junos'
       register: _r_junos
@@ -39,4 +43,4 @@
       ansible.builtin.debug:
         msg:
           - "Host: {{ inventory_hostname }} ({{ ansible_network_os }})  ({{ 'ALTERADO' if ([_r_ios, _r_eos, _r_junos] | selectattr('changed','defined') | selectattr('changed') | list | length > 0) else 'ja estava' }})"
-          - "NTP servers: {{ ntp_servers }}"
+          - "NTP servers: {{ _ntp_servers_list }}"
