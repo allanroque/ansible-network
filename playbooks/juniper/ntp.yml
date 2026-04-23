@@ -13,18 +13,6 @@
       {{ (ntp_servers | from_yaml | default([])) if (ntp_servers is string) else ntp_servers }}
 
   tasks:
-    - name: "Juniper | checagem chave SSH para NETCONF"
-      ansible.builtin.assert:
-        that:
-          - (_junos_ssh_key | length) > 0
-        fail_msg: >-
-          Junos {{ inventory_hostname }}: NETCONF/SSH aceitou apenas publickey.
-          Inclua PEM na credencial Machine (SSH Private Key) ou ansible_ssh_private_key_file no inventario.
-          Opcional: juniper_skip_ntp=true para omitir esta task ate a chave existir.
-      vars:
-        _junos_ssh_key: "{{ ansible_ssh_private_key_file | default(ansible_private_key_file | default('', true), true) }}"
-      when: not (juniper_skip_ntp | default(false) | bool)
-
     - name: "Juniper | NTP servers (junos_ntp_global / netconf)"
       junipernetworks.junos.junos_ntp_global:
         config:
@@ -32,6 +20,15 @@
         state: merged
       register: _result
       when: not (juniper_skip_ntp | default(false) | bool)
+      ignore_errors: "{{ not (juniper_ntp_netconf_strict | default(false) | bool) }}"
+
+    - name: "Juniper | aviso NETCONF (auth / PEM)"
+      ansible.builtin.debug:
+        msg:
+          - "NETCONF NTP nao aplicado (auth). PEM na credencial ou inventario; juniper_ntp_netconf_strict=true para falhar o job."
+      when:
+        - not (juniper_skip_ntp | default(false) | bool)
+        - _result.failed | default(false)
 
     - name: "Juniper | NTP omitido (juniper_skip_ntp=true)"
       ansible.builtin.debug:
@@ -42,5 +39,9 @@
     - name: "Juniper | info | NTP aplicado"
       ansible.builtin.debug:
         msg:
-          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if (_result.changed | default(false)) else 'ja estava' }})"
+          - >-
+            Host: {{ inventory_hostname }}  ({{
+              'ALTERADO' if (_result.changed | default(false))
+              else ('NETCONF/auth nao aplicado' if (_result.failed | default(false)) else 'ja estava')
+            }})
           - "NTP servers: {{ _ntp_servers_list }}"

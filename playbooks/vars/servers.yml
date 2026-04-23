@@ -12,9 +12,9 @@
 #   Os playbooks NTP/Syslog convertem string YAML em lista (from_yaml).
 #
 # Junos (NETCONF/SSH) só com publickey:
-#   No AAP, credencial Machine: campo "SSH Private Key" (PEM) + usuario correto.
-#   Senha sozinha -> BadAuthenticationType ['publickey'].
-#   Para pular NTP no Junos ate arrumar a chave: juniper_skip_ntp: true (inventario/host).
+#   Credencial Machine: "SSH Private Key" (PEM) + usuario correto no Junos.
+#   juniper_skip_ntp: true — nao executa NTP no Junos.
+#   juniper_ntp_netconf_strict: true — falha o job se NETCONF/auth quebrar (default: false, ignora erro).
 # =============================================================================
 
 # --- NTP ---

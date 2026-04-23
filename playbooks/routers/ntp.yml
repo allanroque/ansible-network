@@ -31,22 +31,8 @@
       when: ansible_network_os == 'eos'
       register: _r_eos
 
-    # NETCONF usa SSH; se o Junos anunciar apenas publickey, e obrigatorio PEM (credencial ou inventario).
-    - name: "Juniper Junos | checagem chave SSH para NETCONF"
-      ansible.builtin.assert:
-        that:
-          - (_junos_ssh_key | length) > 0
-        fail_msg: >-
-          Junos {{ inventory_hostname }}: SSH aceitou apenas publickey (BadAuthenticationType).
-          Inclua a chave privada PEM na credencial Machine do Job Template (campo SSH Private Key)
-          ou defina ansible_ssh_private_key_file no inventario (grupo juniper / host).
-          Senha sozinha nao autentica nesse modo; o config do modulo abaixo esta correto — falha e na camada SSH.
-      vars:
-        _junos_ssh_key: "{{ ansible_ssh_private_key_file | default(ansible_private_key_file | default('', true), true) }}"
-      when:
-        - ansible_network_os == 'junos'
-        - not (juniper_skip_ntp | default(false) | bool)
-
+    # NETCONF/SSH só publickey: sem PEM valida o modulo falha — por defeito o job nao quebra (ignore_errors).
+    # Inventario: juniper_ntp_netconf_strict=true para falhar o play neste host; juniper_skip_ntp=true para pular.
     - name: "Juniper Junos | NTP (junos_ntp_global / netconf)"
       junipernetworks.junos.junos_ntp_global:
         config:
@@ -56,6 +42,18 @@
         - ansible_network_os == 'junos'
         - not (juniper_skip_ntp | default(false) | bool)
       register: _r_junos
+      ignore_errors: "{{ not (juniper_ntp_netconf_strict | default(false) | bool) }}"
+
+    - name: "Juniper Junos | aviso NETCONF (auth / PEM)"
+      ansible.builtin.debug:
+        msg:
+          - "NETCONF NTP nao aplicado em {{ inventory_hostname }} (ex.: BadAuthenticationType / so publickey)."
+          - "Corrija: credencial Machine com SSH Private Key (PEM) + usuario Junos, ou ansible_ssh_private_key_file no inventario."
+          - "Para falhar o job aqui: juniper_ntp_netconf_strict=true. Para nao tentar NTP: juniper_skip_ntp=true."
+      when:
+        - ansible_network_os == 'junos'
+        - not (juniper_skip_ntp | default(false) | bool)
+        - _r_junos.failed | default(false)
 
     - name: "Juniper Junos | NTP omitido (juniper_skip_ntp=true no inventario)"
       ansible.builtin.debug:
@@ -68,5 +66,14 @@
     - name: "Routers | info | NTP aplicado"
       ansible.builtin.debug:
         msg:
-          - "Host: {{ inventory_hostname }} ({{ ansible_network_os }})  ({{ 'ALTERADO' if ([_r_ios | default({}), _r_eos | default({}), _r_junos | default({})] | selectattr('changed', 'defined') | selectattr('changed') | list | length > 0) else 'ja estava' }})"
+          - >-
+            Host: {{ inventory_hostname }} ({{ ansible_network_os }})  ({{
+              'ALTERADO' if ([_r_ios | default({}), _r_eos | default({}), _r_junos | default({})]
+              | selectattr('changed', 'defined') | selectattr('changed') | list | length > 0)
+              else (
+                'NETCONF/auth nao aplicado (ver PEM ou juniper_ntp_netconf_strict)'
+                if (ansible_network_os == 'junos' and (_r_junos.failed | default(false)))
+                else 'ja estava'
+              )
+            }})
           - "NTP servers: {{ _ntp_servers_list }}"
