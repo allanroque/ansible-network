@@ -13,9 +13,10 @@
       {{ (ntp_servers | from_yaml | default([])) if (ntp_servers is string) else ntp_servers }}
 
   tasks:
-    - name: "Juniper | NTP servers (junos_config via network_cli)"
-      junipernetworks.junos.junos_config:
-        lines: "{{ _ntp_servers_list | map('regex_replace', '^(.*)$', 'set system ntp server \\1') | list }}"
+    - name: "Juniper | NTP servers (cli_config via network_cli)"
+      ansible.netcommon.cli_config:
+        config: "{{ _ntp_servers_list | map('regex_replace', '^(.*)$', 'set system ntp server \\1') | join('\n') }}"
+        commit: true
       vars:
         ansible_connection: network_cli
       register: _result

@@ -31,10 +31,11 @@
       when: ansible_network_os == 'eos'
       register: _r_eos
 
-    # NETCONF (grupo juniper) pode estar só com publickey; SSH CLI costuma aceitar user/senha.
-    - name: "Juniper Junos | NTP (junos_config via network_cli)"
-      junipernetworks.junos.junos_config:
-        lines: "{{ _ntp_servers_list | map('regex_replace', '^(.*)$', 'set system ntp server \\1') | list }}"
+    # junos_config exige netconf; para SSH CLI (user/senha) use cli_config + network_cli.
+    - name: "Juniper Junos | NTP (cli_config via network_cli)"
+      ansible.netcommon.cli_config:
+        config: "{{ _ntp_servers_list | map('regex_replace', '^(.*)$', 'set system ntp server \\1') | join('\n') }}"
+        commit: true
       vars:
         ansible_connection: network_cli
       when: ansible_network_os == 'junos'
