@@ -1,0 +1,177 @@
+---
+# =============================================================================
+# Network Report - coleta info dos routers, gera HTML interativo
+# e publica em container Apache no aap01.aroque.com.br
+# =============================================================================
+# Uso:
+#   ansible-playbook playbooks/report/report.yml
+#   ansible-playbook playbooks/report/report.yml -e 'webhost_user=ec2-user'
+#   ansible-playbook playbooks/report/report.yml -e 'container_port=9090'
+#
+# Fluxo:
+#   Play 1 - Coletar facts dos routers (cisco + arista + juniper)
+#   Play 2 - Renderizar template HTML localmente
+#   Play 3 - Registrar aap01 como host dinamico
+#   Play 4 - Publicar HTML e subir container Apache no aap01
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Play 1: Coletar facts de todos os routers
+# -----------------------------------------------------------------------------
+- name: "Report | coletar facts dos routers"
+  hosts: routers
+  gather_facts: false
+  vars_files:
+    - vars/report.yml
+
+  tasks:
+    - name: "Cisco | coletar facts (ios_facts)"
+      cisco.ios.ios_facts:
+        gather_subset:
+          - hardware
+          - interfaces
+          - config
+      when: ansible_network_os == 'ios'
+      failed_when: false
+
+    - name: "Arista | coletar facts (eos_facts)"
+      arista.eos.eos_facts:
+        gather_subset:
+          - hardware
+          - interfaces
+          - config
+      when: ansible_network_os == 'eos'
+      failed_when: false
+
+    - name: "Juniper | coletar facts (junos_facts)"
+      junipernetworks.junos.junos_facts:
+        gather_subset:
+          - hardware
+          - interfaces
+          - config
+      when: ansible_network_os == 'junos'
+      failed_when: false
+
+    - name: "Info | facts coletados"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ ansible_network_os }})"
+          - "Hostname: {{ ansible_net_hostname | default('-') }}"
+          - "Model:    {{ ansible_net_model | default('-') }}"
+          - "Version:  {{ ansible_net_version | default('-') }}"
+          - "Interfaces: {{ ansible_net_interfaces | default({}) | length }}"
+
+# -----------------------------------------------------------------------------
+# Play 2: Gerar HTML localmente a partir dos facts coletados
+# -----------------------------------------------------------------------------
+- name: "Report | gerar HTML localmente"
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - vars/report.yml
+
+  tasks:
+    - name: "Renderizar template HTML"
+      ansible.builtin.template:
+        src: templates/report.html.j2
+        dest: "{{ local_report_path }}"
+        mode: "0644"
+      register: _render
+
+    - name: "Info | HTML gerado"
+      ansible.builtin.debug:
+        msg:
+          - "Report HTML gerado em: {{ local_report_path }}"
+          - "Tamanho: {{ _render.size | default('N/A') }} bytes"
+
+# -----------------------------------------------------------------------------
+# Play 3: Adicionar aap01 dinamicamente ao inventario
+# -----------------------------------------------------------------------------
+- name: "Report | registrar aap01 como host dinamico"
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/report.yml
+
+  tasks:
+    - name: "Add aap01 ao inventario in-memory"
+      ansible.builtin.add_host:
+        name: "{{ webhost_name }}"
+        groups: webhost
+        ansible_host: "{{ webhost_address }}"
+        ansible_user: "{{ webhost_user }}"
+        ansible_connection: ssh
+        ansible_become: "{{ webhost_become }}"
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+      changed_when: false
+
+# -----------------------------------------------------------------------------
+# Play 4: Publicar HTML no aap01 e subir container Apache
+# -----------------------------------------------------------------------------
+- name: "Report | publicar container Apache no aap01"
+  hosts: "{{ webhost_name | default('aap01') }}"
+  gather_facts: false
+  vars_files:
+    - vars/report.yml
+
+  tasks:
+    - name: "aap01 | garantir diretorio do report"
+      ansible.builtin.file:
+        path: "{{ remote_html_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: "aap01 | copiar HTML como index.html"
+      ansible.builtin.copy:
+        src: "{{ local_report_path }}"
+        dest: "{{ remote_html_dir }}/index.html"
+        mode: "0644"
+      register: _copy
+
+    - name: "aap01 | verificar se container ja existe"
+      ansible.builtin.command: "{{ container_runtime }} container exists {{ container_name }}"
+      register: _exists
+      failed_when: false
+      changed_when: false
+
+    - name: "aap01 | puxar imagem Apache (se necessario)"
+      ansible.builtin.command: "{{ container_runtime }} pull {{ container_image }}"
+      when: _exists.rc != 0
+      changed_when: true
+
+    - name: "aap01 | subir container Apache httpd"
+      ansible.builtin.command: >
+        {{ container_runtime }} run -d
+        --name {{ container_name }}
+        --restart=unless-stopped
+        -p {{ container_port }}:{{ container_internal_port }}
+        -v {{ remote_html_dir }}:/usr/local/apache2/htdocs/:Z
+        {{ container_image }}
+      when: _exists.rc != 0
+      changed_when: true
+      register: _started
+
+    - name: "aap01 | container ja existia - garantir que esta rodando"
+      ansible.builtin.command: "{{ container_runtime }} start {{ container_name }}"
+      when: _exists.rc == 0
+      changed_when: false
+      failed_when: false
+
+    - name: "aap01 | verificar status do container"
+      ansible.builtin.command: "{{ container_runtime }} ps --filter name={{ container_name }} --format '{{ '{{' }}.Status{{ '}}' }}'"
+      register: _status
+      changed_when: false
+
+    - name: "Info | acesso ao report"
+      ansible.builtin.debug:
+        msg:
+          - "=================================================================="
+          - "  Network Report publicado com sucesso!"
+          - "=================================================================="
+          - "  URL:        http://{{ webhost_address }}:{{ container_port }}"
+          - "  Container:  {{ container_name }}"
+          - "  Status:     {{ _status.stdout | default('?') }}"
+          - "  Host:       {{ inventory_hostname }}"
+          - "  HTML dir:   {{ remote_html_dir }}/index.html"
+          - "  HTML local: {{ local_report_path }}"
+          - "=================================================================="

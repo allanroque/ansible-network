@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Variaveis do Network Report
+# =============================================================================
+# Sobrescreva via CLI se precisar:
+#   ansible-playbook playbooks/report/report.yml -e 'webhost_user=ec2-user'
+# =============================================================================
+
+# --- Webhost (onde sobe o container Apache com o report) ---
+webhost_name: aap01
+webhost_address: aap01.aroque.com.br
+webhost_user: cloud-user              # usuario SSH para acessar o aap01
+webhost_become: true                  # usar sudo no aap01 (necessario pro podman/dir)
+
+# --- Container Apache ---
+container_name: network-report
+container_image: docker.io/httpd:2.4-alpine
+container_port: 8787                  # porta externa de acesso
+container_internal_port: 80           # porta do httpd dentro do container
+container_runtime: podman             # podman (default em RHEL/AAP) - use 'docker' se necessario
+
+# --- Paths ---
+remote_html_dir: /opt/network-report  # diretorio no aap01 que hospeda o HTML
+local_report_path: /tmp/network-report.html   # path local (dentro do EE)

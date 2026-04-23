@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network Infrastructure Report</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --bg-soft: #1a2028;
+    --card: #232a35;
+    --card-hover: #2a3340;
+    --accent: #ee0000;
+    --accent-soft: rgba(238, 0, 0, 0.15);
+    --text: #e8e8e8;
+    --muted: #8a96a8;
+    --border: #2f3a4a;
+    --ok: #3cbc3c;
+    --warn: #ffb347;
+    --err: #e74c3c;
+    --cisco: #1ba0d7;
+    --arista: #f15a29;
+    --juniper: #84bd00;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  header {
+    background: linear-gradient(135deg, #ee0000 0%, #8b0000 60%, #4a0000 100%);
+    padding: 3rem 2rem 4rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 50%, rgba(255,255,255,0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 0%, transparent 50%);
+  }
+  header > * { position: relative; z-index: 1; }
+  header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+  header .sub {
+    opacity: 0.92;
+    font-size: 1.05rem;
+    font-weight: 300;
+  }
+  header .badges {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  header .badge {
+    background: rgba(255,255,255,0.15);
+    padding: 0.3rem 0.9rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    backdrop-filter: blur(10px);
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: -2.5rem auto 2rem;
+    padding: 0 1.5rem;
+  }
+
+  /* Summary cards */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+    position: relative;
+    z-index: 2;
+  }
+  .stat {
+    background: var(--card);
+    padding: 1.5rem;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .stat:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+  }
+  .stat .num {
+    font-size: 2.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+  .stat .label {
+    color: var(--muted);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+  }
+  .stat.cisco .num { color: var(--cisco); }
+  .stat.arista .num { color: var(--arista); }
+  .stat.juniper .num { color: var(--juniper); }
+
+  /* DC section */
+  .dc-section { margin-bottom: 2.5rem; }
+  .dc-section h2 {
+    border-left: 4px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 1.2rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+  .dc-count {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 0.95rem;
+  }
+
+  /* Router cards */
+  .routers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 1.2rem;
+  }
+  .router {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+  .router:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+  }
+  .router-head {
+    padding: 1rem 1.2rem;
+    background: linear-gradient(to right, var(--accent-soft), transparent);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+  .router-head h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    flex: 1;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 8px var(--ok);
+  }
+  .vendor-badge {
+    padding: 0.25rem 0.7rem;
+    border-radius: 14px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: white;
+  }
+  .vendor-cisco   { background: var(--cisco); }
+  .vendor-arista  { background: var(--arista); }
+  .vendor-juniper { background: var(--juniper); }
+
+  .router-body { padding: 1rem 1.2rem; }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.55rem 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 0.9rem;
+  }
+  .info-row:last-of-type { border-bottom: none; }
+  .info-label { color: var(--muted); font-weight: 500; }
+  .info-value {
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    max-width: 60%;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  /* Details (expansível) */
+  details {
+    margin-top: 0.8rem;
+    background: var(--bg-soft);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  summary {
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--accent);
+    user-select: none;
+    transition: background 0.15s;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.9rem;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after {
+    content: "▼";
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+    color: var(--muted);
+  }
+  details[open] summary::after { transform: rotate(180deg); }
+  summary:hover { background: var(--accent-soft); }
+  .details-content {
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  th, td {
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    background: rgba(0,0,0,0.2);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.03); }
+  code {
+    background: rgba(0,0,0,0.3);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.8em;
+  }
+  pre {
+    background: rgba(0,0,0,0.4);
+    padding: 0.8rem;
+    border-radius: 6px;
+    max-height: 350px;
+    overflow: auto;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    border: 1px solid var(--border);
+  }
+
+  footer {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+    margin-top: 3rem;
+  }
+  footer strong { color: var(--accent); }
+
+  /* Search bar */
+  .search-wrap {
+    margin-bottom: 1.5rem;
+    position: relative;
+  }
+  .search-wrap input {
+    width: 100%;
+    padding: 0.8rem 1rem 0.8rem 2.8rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-wrap input:focus { border-color: var(--accent); }
+  .search-wrap::before {
+    content: "🔍";
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.6;
+  }
+
+  @media (max-width: 640px) {
+    header h1 { font-size: 1.8rem; }
+    .summary { grid-template-columns: repeat(2, 1fr); }
+    .routers { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🌐 Network Infrastructure Report</h1>
+    <div class="sub">Snapshot dos routers gerenciados pelo Ansible Automation Platform</div>
+    <div class="badges">
+      <span class="badge">📅 {{ ansible_date_time.iso8601 | default('N/A') }}</span>
+      <span class="badge">🖥️ {{ groups['routers'] | default([]) | length }} hosts</span>
+      <span class="badge">🔐 AAP 2.6</span>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Summary cards -->
+    <div class="summary">
+      <div class="stat">
+        <div class="num">{{ groups['routers'] | default([]) | length }}</div>
+        <div class="label">Total Routers</div>
+      </div>
+      <div class="stat cisco">
+        <div class="num">{{ groups['cisco'] | default([]) | length }}</div>
+        <div class="label">Cisco IOS</div>
+      </div>
+      <div class="stat arista">
+        <div class="num">{{ groups['arista'] | default([]) | length }}</div>
+        <div class="label">Arista EOS</div>
+      </div>
+      <div class="stat juniper">
+        <div class="num">{{ groups['juniper'] | default([]) | length }}</div>
+        <div class="label">Juniper Junos</div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-wrap">
+      <input type="text" id="search" placeholder="Buscar por hostname, IP, modelo...">
+    </div>
+
+    <!-- Routers por DC -->
+    {% for dc in ['dc1', 'dc2', 'dc3'] %}
+    {% if groups.get(dc) %}
+    <section class="dc-section" data-dc="{{ dc }}">
+      <h2>📍 Datacenter {{ dc | upper }}
+        <span class="dc-count">· {{ groups[dc] | length }} routers</span>
+      </h2>
+      <div class="routers">
+        {% for host in groups[dc] | sort %}
+        {% set hv = hostvars[host] %}
+        {% set os = hv.ansible_network_os | default('unknown') %}
+        {% set vendor = 'cisco' if os == 'ios' else ('arista' if os == 'eos' else ('juniper' if os == 'junos' else 'unknown')) %}
+        {% set vendor_label = 'Cisco IOS' if os == 'ios' else ('Arista EOS' if os == 'eos' else ('Juniper Junos' if os == 'junos' else os)) %}
+        <article class="router" data-search="{{ host }} {{ hv.ansible_host | default('') }} {{ hv.ansible_net_hostname | default('') }} {{ hv.ansible_net_model | default('') }} {{ hv.ansible_net_version | default('') }} {{ vendor }}">
+          <div class="router-head">
+            <span class="status-dot" title="reachable"></span>
+            <h3>{{ host }}</h3>
+            <span class="vendor-badge vendor-{{ vendor }}">{{ vendor_label }}</span>
+          </div>
+          <div class="router-body">
+
+            <!-- Info basica (sempre visivel) -->
+            <div class="info-row">
+              <span class="info-label">Hostname</span>
+              <span class="info-value">{{ hv.ansible_net_hostname | default(host) }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">IP Mgmt</span>
+              <span class="info-value">{{ hv.ansible_host | default('-') }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Modelo</span>
+              <span class="info-value">{{ hv.ansible_net_model | default('-') }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Versao</span>
+              <span class="info-value">{{ hv.ansible_net_version | default('-') }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Serial</span>
+              <span class="info-value">{{ hv.ansible_net_serialnum | default('-') }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">Interfaces</span>
+              <span class="info-value">{{ hv.ansible_net_interfaces | default({}) | length }}</span>
+            </div>
+
+            <!-- Detalhes expansiveis -->
+            <details>
+              <summary>📡 Interfaces</summary>
+              <div class="details-content">
+                {% set ifaces = hv.ansible_net_interfaces | default({}) %}
+                {% if ifaces %}
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Interface</th>
+                      <th>Status</th>
+                      <th>IPv4</th>
+                      <th>MAC</th>
+                      <th>MTU</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for iface, data in ifaces.items() | sort %}
+                    {% set ipv4 = data.ipv4 | default('') %}
+                    <tr>
+                      <td><code>{{ iface }}</code></td>
+                      <td>
+                        {% set opst = data.operstatus | default(data.lineprotocol | default('?')) %}
+                        <span style="color: {{ 'var(--ok)' if opst in ['up', 'connected'] else 'var(--muted)' }}">{{ opst }}</span>
+                      </td>
+                      <td>
+                        {% if ipv4 is mapping %}
+                          <code>{{ ipv4.address | default('-') }}</code>
+                        {% elif ipv4 is iterable and ipv4 is not string and ipv4 | length > 0 %}
+                          <code>{{ ipv4[0].address | default('-') }}</code>
+                        {% elif ipv4 %}
+                          <code>{{ ipv4 }}</code>
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td><code>{{ data.macaddress | default('-') }}</code></td>
+                      <td>{{ data.mtu | default('-') }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                {% else %}
+                <p style="color: var(--muted); font-style: italic;">Sem dados de interfaces.</p>
+                {% endif %}
+              </div>
+            </details>
+
+            {% if hv.ansible_net_neighbors is defined and hv.ansible_net_neighbors %}
+            <details>
+              <summary>🔗 Vizinhos LLDP/CDP ({{ hv.ansible_net_neighbors | length }})</summary>
+              <div class="details-content">
+                <table>
+                  <thead><tr><th>Local Iface</th><th>Remote Host</th><th>Remote Port</th></tr></thead>
+                  <tbody>
+                    {% for iface, neighbors in hv.ansible_net_neighbors.items() %}
+                      {% for n in neighbors %}
+                      <tr>
+                        <td><code>{{ iface }}</code></td>
+                        <td>{{ n.host | default('-') }}</td>
+                        <td><code>{{ n.port | default('-') }}</code></td>
+                      </tr>
+                      {% endfor %}
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            {% endif %}
+
+            <details>
+              <summary>⚙️ Detalhes do sistema</summary>
+              <div class="details-content">
+                <div class="info-row"><span class="info-label">OS / Platform</span><span class="info-value">{{ hv.ansible_network_os | default('-') }}</span></div>
+                <div class="info-row"><span class="info-label">Image file</span><span class="info-value">{{ hv.ansible_net_image | default('-') }}</span></div>
+                <div class="info-row"><span class="info-label">FQDN</span><span class="info-value">{{ hv.ansible_net_fqdn | default('-') }}</span></div>
+                {% if hv.ansible_net_memtotal_mb is defined %}
+                <div class="info-row"><span class="info-label">Memoria Total</span><span class="info-value">{{ hv.ansible_net_memtotal_mb }} MB</span></div>
+                <div class="info-row"><span class="info-label">Memoria Livre</span><span class="info-value">{{ hv.ansible_net_memfree_mb | default('-') }} MB</span></div>
+                {% endif %}
+                {% if hv.ansible_net_filesystems is defined %}
+                <div class="info-row"><span class="info-label">Filesystems</span><span class="info-value">{{ hv.ansible_net_filesystems | join(', ') }}</span></div>
+                {% endif %}
+                <div class="info-row"><span class="info-label">Grupos</span><span class="info-value">{{ hv.group_names | default([]) | join(', ') }}</span></div>
+              </div>
+            </details>
+
+            <details>
+              <summary>📦 Facts completos (JSON)</summary>
+              <div class="details-content">
+                <pre>{{ hv | dict2items | selectattr('key', 'match', '^ansible_net_') | list | items2dict | to_nice_json }}</pre>
+              </div>
+            </details>
+
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+    {% endfor %}
+
+  </div>
+
+  <footer>
+    <p><strong>Network Infrastructure Report</strong> · Gerado via Ansible Automation Platform</p>
+    <p style="margin-top: 0.5rem;">{{ groups['routers'] | default([]) | length }} hosts analisados · {{ ansible_date_time.iso8601 | default('N/A') }}</p>
+  </footer>
+
+<script>
+  // Filtro/busca simples - esconde cards que nao batem
+  const search = document.getElementById('search');
+  if (search) {
+    search.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      document.querySelectorAll('.router').forEach(r => {
+        const haystack = (r.dataset.search || '').toLowerCase();
+        r.style.display = (!q || haystack.includes(q)) ? '' : 'none';
+      });
+      // Esconde section se vazia
+      document.querySelectorAll('.dc-section').forEach(s => {
+        const visible = s.querySelectorAll('.router:not([style*="display: none"])').length;
+        s.style.display = visible > 0 ? '' : 'none';
+      });
+    });
+  }
+</script>
+</body>
+</html>
