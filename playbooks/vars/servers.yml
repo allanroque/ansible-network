@@ -10,6 +10,10 @@
 #   ansible-playbook playbooks/cisco/ntp.yml \
 #     -e 'ntp_servers=["10.20.0.1","10.20.0.2"]'
 #   Os playbooks NTP/Syslog convertem string YAML em lista (from_yaml).
+#
+# Junos (NETCONF/SSH) só com publickey:
+#   No AAP, edite a credencial Machine e preencha "SSH Private Key" (PEM) do usuario
+#   que acessa o equipamento; senha isolada nao autentica nesse modo.
 # =============================================================================
 
 # --- NTP ---
