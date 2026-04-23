@@ -1,0 +1,125 @@
+---
+# Playbook: Aplicacao de patches de seguranca em servidores Linux
+# Uso: ansible-playbook -i inventory patch-vulnerabilities.yml
+
+- name: Aplicacao de patches de vulnerabilidade
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    reboot_after_patch: false
+
+  tasks:
+
+    - name: Exibir informacoes do servidor
+      ansible.builtin.debug:
+        msg: >-
+          Iniciando patching em {{ inventory_hostname }}
+          ({{ ansible_distribution }} {{ ansible_distribution_version }},
+          kernel {{ ansible_kernel }})
+
+    # ---------- RedHat / CentOS / Fedora ----------
+    - name: Verificar atualizacoes de seguranca disponiveis (RedHat)
+      ansible.builtin.command: dnf updateinfo list --security
+      register: security_updates
+      changed_when: false
+      when: ansible_os_family == "RedHat"
+
+    - name: Exibir patches de seguranca disponiveis (RedHat)
+      ansible.builtin.debug:
+        msg: "{{ security_updates.stdout_lines }}"
+      when:
+        - ansible_os_family == "RedHat"
+        - security_updates.stdout_lines | length > 0
+
+    - name: Aplicar patches de seguranca (RedHat)
+      ansible.builtin.dnf:
+        name: "*"
+        state: latest
+        security: true
+        update_cache: true
+      register: patch_result_redhat
+      when: ansible_os_family == "RedHat"
+
+    - name: Exibir resultado do patching (RedHat)
+      ansible.builtin.debug:
+        msg: >-
+          {% if patch_result_redhat.changed %}
+          Patches aplicados com sucesso em {{ inventory_hostname }}.
+          {% else %}
+          Nenhum patch de seguranca pendente em {{ inventory_hostname }}.
+          {% endif %}
+      when: ansible_os_family == "RedHat"
+
+    # ---------- Debian / Ubuntu ----------
+    - name: Atualizar cache do apt (Debian)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Verificar atualizacoes de seguranca disponiveis (Debian)
+      ansible.builtin.command: apt list --upgradable
+      register: security_updates_deb
+      changed_when: false
+      when: ansible_os_family == "Debian"
+
+    - name: Exibir patches disponiveis (Debian)
+      ansible.builtin.debug:
+        msg: "{{ security_updates_deb.stdout_lines }}"
+      when:
+        - ansible_os_family == "Debian"
+        - security_updates_deb.stdout_lines | length > 0
+
+    - name: Aplicar patches de seguranca (Debian)
+      ansible.builtin.apt:
+        name: "*"
+        state: latest
+        only_upgrade: true
+      register: patch_result_debian
+      when: ansible_os_family == "Debian"
+
+    - name: Exibir resultado do patching (Debian)
+      ansible.builtin.debug:
+        msg: >-
+          {% if patch_result_debian.changed %}
+          Patches aplicados com sucesso em {{ inventory_hostname }}.
+          {% else %}
+          Nenhum patch pendente em {{ inventory_hostname }}.
+          {% endif %}
+      when: ansible_os_family == "Debian"
+
+    # ---------- Pos-patching ----------
+    - name: Verificar se reboot e necessario
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+
+    - name: Verificar needs-restarting (RedHat)
+      ansible.builtin.command: needs-restarting -r
+      register: needs_restarting
+      failed_when: false
+      changed_when: false
+      when: ansible_os_family == "RedHat"
+
+    - name: Informar necessidade de reboot
+      ansible.builtin.debug:
+        msg: "ATENCAO: {{ inventory_hostname }} necessita de reboot para concluir o patching."
+      when: >
+        reboot_required_file.stat.exists | default(false)
+        or (needs_restarting.rc | default(0)) == 1
+
+    - name: Realizar reboot (se habilitado e necessario)
+      ansible.builtin.reboot:
+        msg: "Reboot automatico pos-patching de seguranca"
+        reboot_timeout: 300
+      when:
+        - reboot_after_patch | bool
+        - >
+          reboot_required_file.stat.exists | default(false)
+          or (needs_restarting.rc | default(0)) == 1
+
+    - name: Exibir resumo final
+      ansible.builtin.debug:
+        msg: "Patching concluido em {{ inventory_hostname }} às {{ ansible_date_time.iso8601 }}."

@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Arista EOS | Banner MOTD
+# Uso: ansible-playbook playbooks/arista/banner.yml
+# =============================================================================
+- name: "Arista | configurar Banner MOTD"
+  hosts: arista
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Arista | eos_banner motd"
+      arista.eos.eos_banner:
+        banner: motd
+        text: "{{ banner_text }}"
+        state: present
+      register: _result
+
+    - name: "Arista | info | banner aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "Banner MOTD: {{ banner_text }}"

@@ -1,0 +1,62 @@
+---
+# =============================================================================
+# Variaveis de Hardening Cisco IOS
+# =============================================================================
+# Baseline simples e pratico - inspirado em CIS / NIST, mas adaptado para lab.
+# Use:
+#   ansible-playbook playbooks/cisco/hardening.yml
+#   ansible-playbook playbooks/cisco/hardening.yml -e 'hardening_enforce_ssh_v2=false'
+# =============================================================================
+
+# --- Servicos inseguros que devem ser DESABILITADOS ---
+# Lista enxuta com comandos validos em IOS / IOS-XE modernos.
+# ('ip finger' e 'ip identd' foram removidos: nao existem mais no IOS recente)
+hardening_services_disable:
+  - "ip http server"
+  - "ip http secure-server"
+  - "ip bootp server"
+  - "ip source-route"
+  - "service pad"
+  - "service config"
+  - "cdp run"
+
+# --- Servicos seguros que devem estar HABILITADOS ---
+# ('no ip domain lookup' - com espaco, nao hifen. IOS moderno mudou a sintaxe)
+hardening_services_enable:
+  - "service password-encryption"
+  - "service tcp-keepalives-in"
+  - "service tcp-keepalives-out"
+  - "logging buffered 64000"
+  - "no ip domain lookup"
+
+# --- SSH hardening ---
+hardening_enforce_ssh_v2: true
+hardening_ssh_timeout: 60            # segundos
+hardening_ssh_auth_retries: 3
+hardening_domain_name: "demo.lab"    # necessario para gerar chave RSA
+
+# --- VTY (acesso remoto) ---
+hardening_vty_exec_timeout: "5 0"    # 5 minutos, 0 segundos
+hardening_vty_transport: "ssh"       # ssh only (nao telnet)
+
+# --- Console ---
+hardening_console_exec_timeout: "5 0"
+
+# --- Password policy ---
+hardening_enable_secret: "R3dh@t2026!Demo"   # enable secret forte
+hardening_min_password_length: 12
+
+# --- Usuarios locais (admin do lab) ---
+hardening_local_users:
+  - name: netadmin
+    privilege: 15
+    password: "R3dh@t2026!Admin"
+  - name: readonly
+    privilege: 1
+    password: "R3dh@t2026!Ro"
+
+# --- Login banner (warning legal) ---
+hardening_login_banner: >-
+  *** ATENCAO: Acesso restrito a pessoal autorizado.
+  Todas as conexoes sao monitoradas e registradas.
+  Uso nao autorizado sera processado conforme a lei. ***

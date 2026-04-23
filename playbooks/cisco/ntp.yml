@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Cisco IOS | NTP (idempotente - resource module)
+# Uso: ansible-playbook playbooks/cisco/ntp.yml
+# =============================================================================
+- name: "Cisco | configurar NTP servers"
+  hosts: cisco
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Cisco | NTP servers (ios_ntp_global - idempotente)"
+      cisco.ios.ios_ntp_global:
+        config:
+          servers: "{{ ntp_servers | map('community.general.dict_kv', 'server') | list }}"
+        state: merged
+      register: _result
+
+    - name: "Cisco | info | NTP aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "NTP servers: {{ ntp_servers }}"

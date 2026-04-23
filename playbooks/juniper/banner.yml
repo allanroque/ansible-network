@@ -1,0 +1,23 @@
+---
+# =============================================================================
+# Juniper Junos | Banner (login message)
+# Uso: ansible-playbook playbooks/juniper/banner.yml
+# =============================================================================
+- name: "Juniper | configurar Banner login message"
+  hosts: juniper
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Juniper | aplicar 'set system login message'"
+      junipernetworks.junos.junos_config:
+        lines:
+          - 'set system login message "{{ banner_text }}"'
+      register: _result
+
+    - name: "Juniper | info | banner aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "Login message: {{ banner_text }}"

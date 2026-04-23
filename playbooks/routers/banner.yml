@@ -1,0 +1,40 @@
+---
+# =============================================================================
+# Routers | Banner multi-vendor (Cisco IOS + Arista EOS + Juniper Junos)
+# Uso: ansible-playbook playbooks/routers/banner.yml
+# =============================================================================
+- name: "Routers | configurar Banner (multi-vendor)"
+  hosts: routers
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Cisco IOS | ios_banner motd"
+      cisco.ios.ios_banner:
+        banner: motd
+        text: "{{ banner_text }}"
+        state: present
+      when: ansible_network_os == 'ios'
+      register: _r_ios
+
+    - name: "Arista EOS | eos_banner motd"
+      arista.eos.eos_banner:
+        banner: motd
+        text: "{{ banner_text }}"
+        state: present
+      when: ansible_network_os == 'eos'
+      register: _r_eos
+
+    - name: "Juniper Junos | 'set system login message'"
+      junipernetworks.junos.junos_config:
+        lines:
+          - 'set system login message "{{ banner_text }}"'
+      when: ansible_network_os == 'junos'
+      register: _r_junos
+
+    - name: "Routers | info | Banner aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }} ({{ ansible_network_os }})  ({{ 'ALTERADO' if ([_r_ios, _r_eos, _r_junos] | selectattr('changed','defined') | selectattr('changed') | list | length > 0) else 'ja estava' }})"
+          - "Banner: {{ banner_text }}"

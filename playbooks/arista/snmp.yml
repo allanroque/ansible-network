@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# Arista EOS | SNMP v2c (idempotente - resource module)
+# Uso: ansible-playbook playbooks/arista/snmp.yml
+# =============================================================================
+- name: "Arista | configurar SNMP"
+  hosts: arista
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Arista | SNMP (eos_snmp_server - idempotente)"
+      arista.eos.eos_snmp_server:
+        config:
+          communities:
+            - name: "{{ snmp_community }}"
+              ro: true
+          contact: "{{ snmp_contact }}"
+          location: "{{ snmp_location }}"
+          hosts:
+            - host: "{{ snmp_trap_host }}"
+              version: "2c"
+              user: "{{ snmp_community }}"
+        state: merged
+      register: _result
+
+    - name: "Arista | info | SNMP aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "Community:  {{ snmp_community }} (ro)"
+          - "Contact:    {{ snmp_contact }}"
+          - "Location:   {{ snmp_location }}"
+          - "Trap host:  {{ snmp_trap_host }}"

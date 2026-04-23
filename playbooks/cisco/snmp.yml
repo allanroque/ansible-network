@@ -1,0 +1,35 @@
+---
+# =============================================================================
+# Cisco IOS | SNMP v2c (idempotente - resource module)
+# Uso: ansible-playbook playbooks/cisco/snmp.yml
+# =============================================================================
+- name: "Cisco | configurar SNMP"
+  hosts: cisco
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Cisco | SNMP (ios_snmp_server - idempotente)"
+      cisco.ios.ios_snmp_server:
+        config:
+          communities:
+            - name: "{{ snmp_community }}"
+              ro: true
+          contact: "{{ snmp_contact }}"
+          location: "{{ snmp_location }}"
+          hosts:
+            - host: "{{ snmp_trap_host }}"
+              version: "2c"
+              community_string: "{{ snmp_community }}"
+        state: merged
+      register: _result
+
+    - name: "Cisco | info | SNMP aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "Community:  {{ snmp_community }} (RO)"
+          - "Contact:    {{ snmp_contact }}"
+          - "Location:   {{ snmp_location }}"
+          - "Trap host:  {{ snmp_trap_host }}"

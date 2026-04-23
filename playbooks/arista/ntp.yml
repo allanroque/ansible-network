@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Arista EOS | NTP (idempotente - resource module)
+# Uso: ansible-playbook playbooks/arista/ntp.yml
+# =============================================================================
+- name: "Arista | configurar NTP servers"
+  hosts: arista
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Arista | NTP servers (eos_ntp_global - idempotente)"
+      arista.eos.eos_ntp_global:
+        config:
+          servers: "{{ ntp_servers | map('community.general.dict_kv', 'server') | list }}"
+        state: merged
+      register: _result
+
+    - name: "Arista | info | NTP aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "NTP servers: {{ ntp_servers }}"

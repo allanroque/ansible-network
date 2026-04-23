@@ -1,0 +1,194 @@
+---
+# =============================================================================
+# Cisco IOS | Hardening baseline (idempotente)
+# =============================================================================
+# Objetivo: aplicar configuracao de seguranca minima em todos os routers Cisco.
+# Simples e pratico, parametrizado via playbooks/vars/hardening.yml.
+#
+# Uso:
+#   ansible-playbook playbooks/cisco/hardening.yml
+#   ansible-playbook playbooks/cisco/hardening.yml --limit dc1
+#   ansible-playbook playbooks/cisco/hardening.yml --check   # dry-run
+#
+# Ordem das tasks (importante):
+#   1. Servicos inseguros (disable)
+#   2. Servicos seguros (enable)
+#   3. SSH v2 + domain
+#   4. Banner login
+#   5. Password policy (enable secret + min-length)
+#   6. Usuarios locais (PRECISA vir antes de 'login local' nas lines,
+#      senao o IOS rejeita o comando para nao prender o admin fora)
+#   7. Console - exec-timeout
+#   8. VTY 0 4 - exec-timeout + transport ssh
+#   9. VTY 5 15 - exec-timeout + transport ssh
+#   10. 'login local' aplicado em todas as lines (ja existem users)
+# =============================================================================
+- name: "Cisco | Hardening baseline"
+  hosts: cisco
+  gather_facts: false
+  vars_files:
+    - ../vars/hardening.yml
+
+  tasks:
+
+    # -------------------------------------------------------------------------
+    # 1. Servicos inseguros - DESABILITAR  (com 'no' na frente)
+    # Item-por-item para que um comando invalido em uma plataforma especifica
+    # NAO derrube o playbook todo (ex: 'ip identd' nao existe em IOS moderno).
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | desabilitar servicos inseguros"
+      cisco.ios.ios_config:
+        lines:
+          - "no {{ item }}"
+        save_when: modified
+      loop: "{{ hardening_services_disable }}"
+      loop_control:
+        label: "no {{ item }}"
+      failed_when: false
+      register: _r_disable
+
+    # -------------------------------------------------------------------------
+    # 2. Servicos seguros - HABILITAR  (item-por-item, resiliente)
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | habilitar servicos seguros"
+      cisco.ios.ios_config:
+        lines:
+          - "{{ item }}"
+        save_when: modified
+      loop: "{{ hardening_services_enable }}"
+      loop_control:
+        label: "{{ item }}"
+      failed_when: false
+      register: _r_enable
+
+    # -------------------------------------------------------------------------
+    # 3. SSH hardening
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | SSH v2 + timeout + retries + domain"
+      cisco.ios.ios_config:
+        lines:
+          - "ip domain name {{ hardening_domain_name }}"
+          - "ip ssh version 2"
+          - "ip ssh time-out {{ hardening_ssh_timeout }}"
+          - "ip ssh authentication-retries {{ hardening_ssh_auth_retries }}"
+        save_when: modified
+      when: hardening_enforce_ssh_v2 | bool
+      failed_when: false
+      register: _r_ssh
+
+    # -------------------------------------------------------------------------
+    # 4. Banner de login (warning legal) - idempotente via ios_banner
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | banner login"
+      cisco.ios.ios_banner:
+        banner: login
+        text: "{{ hardening_login_banner }}"
+        state: present
+      register: _r_banner
+
+    # -------------------------------------------------------------------------
+    # 5. Password policy (enable secret + min-length)
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | password policy (enable secret + min-length)"
+      cisco.ios.ios_config:
+        lines:
+          - "enable secret {{ hardening_enable_secret }}"
+          - "security passwords min-length {{ hardening_min_password_length }}"
+        save_when: modified
+      no_log: true
+      failed_when: false
+      register: _r_pwd
+
+    # -------------------------------------------------------------------------
+    # 6. Usuarios locais - IMPORTANTE: vem antes de 'login local' nas lines
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | usuarios locais (ios_user)"
+      cisco.ios.ios_user:
+        name: "{{ item.name }}"
+        privilege: "{{ item.privilege }}"
+        configured_password: "{{ item.password }}"
+        state: present
+      loop: "{{ hardening_local_users }}"
+      loop_control:
+        label: "{{ item.name }} (priv {{ item.privilege }})"
+      no_log: true
+      register: _r_users
+
+    # -------------------------------------------------------------------------
+    # 7. Console line - exec-timeout
+    # Tasks separadas (nao loop) para evitar que um erro deixe o device
+    # em submode '(config-line)#' e o proximo 'configure terminal' falhe.
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | line con 0 (exec-timeout + logging sync)"
+      cisco.ios.ios_config:
+        parents: "line con 0"
+        lines:
+          - "exec-timeout {{ hardening_console_exec_timeout }}"
+          - "logging synchronous"
+        save_when: modified
+      failed_when: false
+      register: _r_con
+
+    # -------------------------------------------------------------------------
+    # 8. VTY 0 4 - exec-timeout + transport ssh
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | line vty 0 4 (exec-timeout + transport ssh)"
+      cisco.ios.ios_config:
+        parents: "line vty 0 4"
+        lines:
+          - "exec-timeout {{ hardening_vty_exec_timeout }}"
+          - "transport input {{ hardening_vty_transport }}"
+        save_when: modified
+      failed_when: false
+      register: _r_vty04
+
+    # -------------------------------------------------------------------------
+    # 9. VTY 5 15 - exec-timeout + transport ssh
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | line vty 5 15 (exec-timeout + transport ssh)"
+      cisco.ios.ios_config:
+        parents: "line vty 5 15"
+        lines:
+          - "exec-timeout {{ hardening_vty_exec_timeout }}"
+          - "transport input {{ hardening_vty_transport }}"
+        save_when: modified
+      failed_when: false
+      register: _r_vty515
+
+    # -------------------------------------------------------------------------
+    # 10. 'login local' em todas as lines (agora que usuarios ja existem)
+    # Task separada e com failed_when: false - se o IOS nao aceitar
+    # (ex: imagem customizada), o playbook nao quebra.
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | login local nas lines"
+      cisco.ios.ios_config:
+        parents: "{{ item }}"
+        lines:
+          - "login local"
+        save_when: modified
+      loop:
+        - "line con 0"
+        - "line vty 0 4"
+        - "line vty 5 15"
+      loop_control:
+        label: "{{ item }}"
+      failed_when: false
+      register: _r_login
+
+    # -------------------------------------------------------------------------
+    # Relatorio final - mostrar o que foi aplicado
+    # -------------------------------------------------------------------------
+    - name: "Cisco | hardening | info | resumo"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if ([_r_disable, _r_enable, _r_ssh, _r_banner, _r_pwd, _r_users, _r_con, _r_vty04, _r_vty515, _r_login] | selectattr('changed','defined') | selectattr('changed') | list | length > 0) else 'ja estava' }})"
+          - "Servicos desabilitados: {{ hardening_services_disable | join(', ') }}"
+          - "Servicos habilitados:   {{ hardening_services_enable | join(', ') }}"
+          - "SSH v2 forcado:         {{ hardening_enforce_ssh_v2 }}"
+          - "Domain name:            {{ hardening_domain_name }}"
+          - "Console timeout:        {{ hardening_console_exec_timeout }}"
+          - "VTY timeout:            {{ hardening_vty_exec_timeout }}"
+          - "VTY transport:          {{ hardening_vty_transport }}"
+          - "Min password length:    {{ hardening_min_password_length }}"
+          - "Usuarios locais:        {{ hardening_local_users | map(attribute='name') | list }}"
+          - "Banner login aplicado:  sim"

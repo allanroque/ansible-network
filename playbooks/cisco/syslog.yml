@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Cisco IOS | Syslog (idempotente - resource module)
+# Uso: ansible-playbook playbooks/cisco/syslog.yml
+# =============================================================================
+- name: "Cisco | configurar Syslog servers"
+  hosts: cisco
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Cisco | Syslog hosts (ios_logging_global - idempotente)"
+      cisco.ios.ios_logging_global:
+        config:
+          hosts: "{{ syslog_servers | map('community.general.dict_kv', 'hostname') | list }}"
+        state: merged
+      register: _result
+
+    - name: "Cisco | info | Syslog aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "Syslog servers: {{ syslog_servers }}"

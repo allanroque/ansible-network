@@ -1,0 +1,62 @@
+---
+# =============================================================================
+# Routers | SNMP multi-vendor (idempotente - resource modules)
+# Uso: ansible-playbook playbooks/routers/snmp.yml
+# =============================================================================
+- name: "Routers | configurar SNMP (multi-vendor)"
+  hosts: routers
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Cisco IOS | SNMP (ios_snmp_server)"
+      cisco.ios.ios_snmp_server:
+        config:
+          communities:
+            - name: "{{ snmp_community }}"
+              ro: true
+          contact: "{{ snmp_contact }}"
+          location: "{{ snmp_location }}"
+          hosts:
+            - host: "{{ snmp_trap_host }}"
+              version: "2c"
+              community_string: "{{ snmp_community }}"
+        state: merged
+      when: ansible_network_os == 'ios'
+      register: _r_ios
+
+    - name: "Arista EOS | SNMP (eos_snmp_server)"
+      arista.eos.eos_snmp_server:
+        config:
+          communities:
+            - name: "{{ snmp_community }}"
+              ro: true
+          contact: "{{ snmp_contact }}"
+          location: "{{ snmp_location }}"
+          hosts:
+            - host: "{{ snmp_trap_host }}"
+              version: "2c"
+              user: "{{ snmp_community }}"
+        state: merged
+      when: ansible_network_os == 'eos'
+      register: _r_eos
+
+    - name: "Juniper Junos | SNMP community / contact / location / trap-group"
+      junipernetworks.junos.junos_config:
+        lines:
+          - 'set snmp community {{ snmp_community }} authorization read-only'
+          - 'set snmp contact "{{ snmp_contact }}"'
+          - 'set snmp location "{{ snmp_location }}"'
+          - 'set snmp trap-group {{ snmp_community }} targets {{ snmp_trap_host }}'
+      when: ansible_network_os == 'junos'
+      register: _r_junos
+
+    - name: "Routers | info | SNMP aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }} ({{ ansible_network_os }})  ({{ 'ALTERADO' if ([_r_ios, _r_eos, _r_junos] | selectattr('changed','defined') | selectattr('changed') | list | length > 0) else 'ja estava' }})"
+          - "Community:  {{ snmp_community }}"
+          - "Contact:    {{ snmp_contact }}"
+          - "Location:   {{ snmp_location }}"
+          - "Trap host:  {{ snmp_trap_host }}"

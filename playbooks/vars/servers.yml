@@ -1,0 +1,32 @@
+---
+# =============================================================================
+# Variaveis compartilhadas pelos playbooks (NTP / Syslog / SNMP / Banner)
+# =============================================================================
+# Como usar:
+#   vars_files:
+#     - ../vars/servers.yml
+#
+# Override via CLI:
+#   ansible-playbook playbooks/cisco/ntp.yml \
+#     -e 'ntp_servers=["10.20.0.1","10.20.0.2"]'
+# =============================================================================
+
+# --- NTP ---
+ntp_servers:
+  - 10.10.0.200
+  - 10.10.0.201
+  - 10.10.0.202
+
+# --- Syslog ---
+syslog_servers:
+  - 10.10.0.210
+  - 10.10.0.211
+
+# --- SNMP v2c ---
+snmp_community: RO_DEMO
+snmp_contact: "NOC noc@demo.lab"
+snmp_location: "Lab Demo AAP 2.5"
+snmp_trap_host: 10.10.0.220
+
+# --- Banner MOTD (linha unica - compativel com os 3 vendors) ---
+banner_text: "*** ACESSO AUTORIZADO SOMENTE - Lab Demo AAP 2.6 ***"

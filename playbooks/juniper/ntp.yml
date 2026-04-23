@@ -1,0 +1,24 @@
+---
+# =============================================================================
+# Juniper Junos | NTP (idempotente - resource module)
+# Uso: ansible-playbook playbooks/juniper/ntp.yml
+# =============================================================================
+- name: "Juniper | configurar NTP servers"
+  hosts: juniper
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Juniper | NTP servers (junos_ntp_global - idempotente)"
+      junipernetworks.junos.junos_ntp_global:
+        config:
+          servers: "{{ ntp_servers | map('community.general.dict_kv', 'server') | list }}"
+        state: merged
+      register: _result
+
+    - name: "Juniper | info | NTP aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "NTP servers: {{ ntp_servers }}"

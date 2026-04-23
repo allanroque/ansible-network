@@ -1,0 +1,22 @@
+---
+# =============================================================================
+# Juniper Junos | Syslog (idempotente - Junos 'set' e declarativo por natureza)
+# Uso: ansible-playbook playbooks/juniper/syslog.yml
+# =============================================================================
+- name: "Juniper | configurar Syslog servers"
+  hosts: juniper
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Juniper | Syslog 'set system syslog host <ip> any any'"
+      junipernetworks.junos.junos_config:
+        lines: "{{ syslog_servers | map('regex_replace', '^(.*)$', 'set system syslog host \\1 any any') | list }}"
+      register: _result
+
+    - name: "Juniper | info | Syslog aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "Syslog servers: {{ syslog_servers }}"

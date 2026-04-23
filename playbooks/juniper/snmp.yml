@@ -1,0 +1,29 @@
+---
+# =============================================================================
+# Juniper Junos | SNMP v2c (idempotente - Junos 'set' e declarativo por natureza)
+# Uso: ansible-playbook playbooks/juniper/snmp.yml
+# =============================================================================
+- name: "Juniper | configurar SNMP"
+  hosts: juniper
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Juniper | SNMP community / contact / location / trap group"
+      junipernetworks.junos.junos_config:
+        lines:
+          - 'set snmp community {{ snmp_community }} authorization read-only'
+          - 'set snmp contact "{{ snmp_contact }}"'
+          - 'set snmp location "{{ snmp_location }}"'
+          - 'set snmp trap-group {{ snmp_community }} targets {{ snmp_trap_host }}'
+      register: _result
+
+    - name: "Juniper | info | SNMP aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}  ({{ 'ALTERADO' if _result.changed else 'ja estava' }})"
+          - "Community:  {{ snmp_community }} (read-only)"
+          - "Contact:    {{ snmp_contact }}"
+          - "Location:   {{ snmp_location }}"
+          - "Trap group: {{ snmp_community }} -> {{ snmp_trap_host }}"

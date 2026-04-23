@@ -1,0 +1,39 @@
+---
+# =============================================================================
+# Routers | Syslog multi-vendor (idempotente - resource modules)
+# Uso: ansible-playbook playbooks/routers/syslog.yml
+# =============================================================================
+- name: "Routers | configurar Syslog (multi-vendor)"
+  hosts: routers
+  gather_facts: false
+  vars_files:
+    - ../vars/servers.yml
+
+  tasks:
+    - name: "Cisco IOS | Syslog (ios_logging_global)"
+      cisco.ios.ios_logging_global:
+        config:
+          hosts: "{{ syslog_servers | map('community.general.dict_kv', 'hostname') | list }}"
+        state: merged
+      when: ansible_network_os == 'ios'
+      register: _r_ios
+
+    - name: "Arista EOS | Syslog (eos_logging_global)"
+      arista.eos.eos_logging_global:
+        config:
+          hosts: "{{ syslog_servers | map('community.general.dict_kv', 'name') | list }}"
+        state: merged
+      when: ansible_network_os == 'eos'
+      register: _r_eos
+
+    - name: "Juniper Junos | Syslog ('set system syslog host')"
+      junipernetworks.junos.junos_config:
+        lines: "{{ syslog_servers | map('regex_replace', '^(.*)$', 'set system syslog host \\1 any any') | list }}"
+      when: ansible_network_os == 'junos'
+      register: _r_junos
+
+    - name: "Routers | info | Syslog aplicado"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }} ({{ ansible_network_os }})  ({{ 'ALTERADO' if ([_r_ios, _r_eos, _r_junos] | selectattr('changed','defined') | selectattr('changed') | list | length > 0) else 'ja estava' }})"
+          - "Syslog servers: {{ syslog_servers }}"
