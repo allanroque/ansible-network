@@ -50,10 +50,10 @@ hardening_min_password_length: 12
 hardening_local_users:
   - name: netadmin
     privilege: 15
-    password: "R3dh@t2026!Admin"
+    password: ""
   - name: readonly
     privilege: 1
-    password: "R3dh@t2026!Ro"
+    password: ""
 
 # --- Login banner (warning legal) ---
 hardening_login_banner: >-
